@@ -3,6 +3,7 @@
 ## Motivation
 
 ## Problem To Solve
+If the user were to publish a song, will the song get popular on Spotify?
 
 ## Expected Outcome
 
@@ -45,5 +46,18 @@ of the song has received on YouTube.
 - [Boolean]**Licensed**: Indicates whether the video represents licensed content, which means that the content was uploaded to a channel linked to a YouTube content partner and then claimed by that partner.
 - [Boolean]**official_video**: boolean value that indicates if the video found is the official video of the song.
 
+### Significant Columns
+Track, Artist, Album_type, Danceability, Energy, Key, Loudness, Spechiness, Acousticness,
+Instrumentalness, Liveness, Valence, Tempo, Duration_ms, Stream, Views, Likes, Comments, Licensed, official_video
 
+### Insignificant Columns
+**Albumn**: Not important as Albumn_type records whether the song was released as a single song or in an albumn
 
+**Url_spotify**, **Url_youtube**, **Title**, **Description**: strings that provides additional information/reference to the particular song,
+not necessarily influencing the data
+
+### Data Preprocessing
+- Normalize: Danceability, Energy, Key, Loudness, Spechiness, Acousticness,
+Instrumentalness, Liveness, Valence, Tempo, Duration_ms, Stream, Views, Likes, Comments
+- Convert to binary values: Album_type, Licensed, official_video
+- Keep as label: Track, Artist
