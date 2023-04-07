@@ -1,11 +1,14 @@
 # Proposal: Spotify Hit Songs
 
 ## Motivation
+Given a set of parameters of a song, we want to predict whether it can be a popular song on spotify. Art is difficult to quantify, 
+but we hope to provide a metric that help artists analyze their work.
 
 ## Problem To Solve
 If the user were to publish a song, will the song get popular on Spotify?
 
 ## Expected Outcome
+The user provide a set of parameters of a song, being able to predict its class - popular or not popular. Aim to minimize the misclassification rate.
 
 ## Dataset
 
