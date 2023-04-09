@@ -3,9 +3,14 @@
 ## Motivation
 
 ## Problem To Solve
-If the user were to publish a song, will the song get popular on Spotify?
+Suppose the criteria of a popular song is to have ??? views/comments/likes, 
+among the songs that are not popular yet, the top 10? songs that has the greatest
+potential to become popular
 
 ## Expected Outcome
+Predict the top 10 songs that has the greatest potential to become popular.
+
+And also being able to give a probability of a random song to become popular??
 
 ## Dataset
 
@@ -47,17 +52,17 @@ of the song has received on YouTube.
 - [Boolean]**official_video**: boolean value that indicates if the video found is the official video of the song.
 
 ### Significant Columns
-Track, Artist, Album_type, Danceability, Energy, Key, Loudness, Spechiness, Acousticness,
+Danceability, Energy, Key, Loudness, Spechiness, Acousticness,
 Instrumentalness, Liveness, Valence, Tempo, Duration_ms, Stream, Views, Likes, Comments, Licensed, official_video
 
 ### Insignificant Columns
-**Albumn**: Not important as Albumn_type records whether the song was released as a single song or in an albumn
+**Album_type, Track, Artist, Album**: Not important as Album_type records whether the song was released as a single song or in an albumn
 
 **Url_spotify**, **Url_youtube**, **Title**, **Description**: strings that provides additional information/reference to the particular song,
 not necessarily influencing the data
 
 ### Data Preprocessing
 - Normalize: Danceability, Energy, Key, Loudness, Spechiness, Acousticness,
-Instrumentalness, Liveness, Valence, Tempo, Duration_ms, Stream, Views, Likes, Comments
-- Convert to binary values: Album_type, Licensed, official_video
-- Keep as label: Track, Artist
+Instrumentalness, Liveness, Valence, Tempo, Duration_ms
+- Convert to binary values: Licensed, official_video
+- Label: Stream, Views, Likes, Comments
