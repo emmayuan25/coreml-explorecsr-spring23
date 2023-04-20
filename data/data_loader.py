@@ -5,76 +5,6 @@ from torch import nn
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-
-class AutoEncoder(nn.Module):
-    def __init__(self, output_dim=14):
-        super(AutoEncoder, self).__init__()
-        self.enc = nn.Sequential(
-            nn.Linear(output_dim, round(output_dim * 0.75)),
-            nn.Tanh(),
-            # nn.Dropout(p = 0.1),
-            nn.Linear(round(output_dim * 0.75), round(output_dim * 0.50)),
-            nn.Tanh(),
-            # nn.Dropout(p = 0.1),
-            nn.Linear(round(output_dim * 0.50), round(output_dim * 0.33)),
-            nn.Tanh(),
-            # nn.Dropout(p = 0.1),
-            nn.Linear(round(output_dim * 0.33), round(output_dim * 0.25)),
-        )
-        self.dec = nn.Sequential(
-            nn.Linear(round(output_dim * 0.25), round(output_dim * 0.33)),
-            nn.Tanh(),
-            # nn.Dropout(p = 0.1),
-            nn.Linear(round(output_dim * 0.33), round(output_dim * 0.50)),
-            nn.Tanh(),
-            # nn.Dropout(p = 0.1),
-            nn.Linear(round(output_dim * 0.50), round(output_dim * 0.75)),
-            nn.Tanh(),
-            # nn.Dropout(p = 0.1),
-            nn.Linear(round(output_dim * 0.75), output_dim),
-        )
-
-    def forward(self, x):
-        encode = self.enc(x)
-        decode = self.dec(encode)
-        return decode
-
-
-def train(model, train_data, device, epochs, learning_rate):
-    model = model
-
-    model.to(device)
-    model.train()
-
-    # train and update
-    criterion = nn.MSELoss().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    epoch_loss = []
-    for epoch in range(epochs):
-        batch_loss = []
-        for batch_idx, x in enumerate(train_data):
-            x = x.to(device).float()
-            optimizer.zero_grad()
-            decode = model(x)
-            e_loss = criterion(decode, x)
-            e_loss.backward()
-            optimizer.step()
-
-            batch_loss.append(e_loss.item())
-        epoch_loss.append(sum(batch_loss) / len(batch_loss))
-        # print('epoch loss is ' + str(epoch_loss[epoch]))
-
-    return epoch_loss
-
-
-def plot_loss(epoch_loss, epoch, lr):
-    # plot epoch loss curve
-    plt.plot(epoch_loss)
-    plt.title("Learning Rate=" + str(lr) + " Epoch=" + str(epoch))
-    plt.savefig('epoch_loss.png')
-
-
 def process_min_max(training_inputs):
     # normalize columns relating to the characteristics of the songs on training data
     danceability_min = training_inputs['Danceability'].min()
@@ -178,14 +108,125 @@ def load_data():
     return train_data, test_data
 
 
+class AutoEncoder(nn.Module):
+    def __init__(self, output_dim=14):
+        super(AutoEncoder, self).__init__()
+        self.enc = nn.Sequential(
+            nn.Linear(output_dim, round(output_dim * 0.75)),
+            nn.Tanh(),
+            # nn.Dropout(p = 0.1),
+            nn.Linear(round(output_dim * 0.75), round(output_dim * 0.50)),
+            nn.Tanh(),
+            # nn.Dropout(p = 0.1),
+            nn.Linear(round(output_dim * 0.50), round(output_dim * 0.33)),
+            nn.Tanh(),
+            # nn.Dropout(p = 0.1),
+            nn.Linear(round(output_dim * 0.33), round(output_dim * 0.25)),
+        )
+        self.dec = nn.Sequential(
+            nn.Linear(round(output_dim * 0.25), round(output_dim * 0.33)),
+            nn.Tanh(),
+            # nn.Dropout(p = 0.1),
+            nn.Linear(round(output_dim * 0.33), round(output_dim * 0.50)),
+            nn.Tanh(),
+            # nn.Dropout(p = 0.1),
+            nn.Linear(round(output_dim * 0.50), round(output_dim * 0.75)),
+            nn.Tanh(),
+            # nn.Dropout(p = 0.1),
+            nn.Linear(round(output_dim * 0.75), output_dim),
+        )
+
+    def forward(self, x):
+        encode = self.enc(x)
+        decode = self.dec(encode)
+        return decode
+
+
+def train(model, train_data, device, epochs, learning_rate):
+    model = model
+
+    model.to(device)
+    model.train()
+
+    # train and update
+    criterion = nn.MSELoss().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    epoch_loss = []
+    for epoch in range(epochs):
+        batch_loss = []
+        for batch_idx, x in enumerate(train_data):
+            x = x.to(device).float()
+            optimizer.zero_grad()
+            decode = model(x)
+            e_loss = criterion(decode, x)
+            e_loss.backward()
+            optimizer.step()
+
+            batch_loss.append(e_loss.item())
+        epoch_loss.append(sum(batch_loss) / len(batch_loss))
+
+    return epoch_loss
+
+
+def plot_loss(epoch_loss, epoch, lr):
+    # plot epoch loss curve
+    plt.plot(epoch_loss)
+    plt.title("Learning Rate=" + str(lr) + " Epoch=" + str(epoch))
+    plt.savefig('epoch_loss.png')
+
+
+def get_threshold(loss, alpha):
+    mean = np.mean(loss)
+    var = np.var(loss)
+    tr = mean + alpha * var
+
+    print("mean " + str(mean))
+    print("var " + str(var))
+    print("tr " + str(tr))
+
+    return tr
+
+
+def test_model(model, device, test_data, tr, lr, epochs):
+    model.to(device)
+    model.train()
+
+    criterion = nn.MSELoss().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    predictions = []
+    for epoch in range(epochs):
+        for batch_idx, x in enumerate(test_data):
+            x = x.to(device).float()
+            optimizer.zero_grad()
+            decode = model(x)
+            e_loss = criterion(decode, x)
+            e_loss.backward()
+            optimizer.step()
+
+            if e_loss.item() <= tr:
+                print(x)
+                predictions.append(x)
+
+    return predictions
+
+
 if __name__ == "__main__":
     # load data
     training_inputs, testing_inputs = load_data()
 
     # train data
     autoencoder = AutoEncoder()
-    epoch = 100
-    lr = 0.1
+    epoch = 300
+    lr = 0.5
     loss = train(model=autoencoder, train_data=training_inputs, device="cpu", epochs=epoch, learning_rate=lr)
 
-    plot_loss(loss, epoch, lr)
+    # plot_loss(loss, epoch, lr)
+
+    alpha = 0
+    tr = get_threshold(loss, alpha)
+
+    predictions = test_model(model=autoencoder, test_data=testing_inputs, device="cpu", epochs=epoch, tr=tr, lr=lr)
+
+    print(predictions)
