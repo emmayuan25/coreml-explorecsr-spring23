@@ -5,62 +5,25 @@ from torch import nn
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-def process_min_max(training_inputs):
+
+def process_min_max(training_inputs, testing_inputs):
     # normalize columns relating to the characteristics of the songs on training data
-    danceability_min = training_inputs['Danceability'].min()
-    danceability_max = training_inputs['Danceability'].max()
-    training_inputs['Danceability'] = (training_inputs['Danceability'] - danceability_min) / (
-            danceability_max - danceability_min)
+    train_min = np.min(training_inputs, axis=0)
+    train_max = np.max(training_inputs, axis=0)
 
-    energy_min = training_inputs['Energy'].min()
-    energy_max = training_inputs['Energy'].max()
-    training_inputs['Energy'] = (training_inputs['Energy'] - energy_min) / (energy_max - energy_min)
+    training_inputs = training_inputs - train_min / train_max - train_min
+    testing_inputs = testing_inputs - train_min / train_max - train_min
 
-    key_min = training_inputs['Key'].min()
-    key_max = training_inputs['Key'].max()
-    training_inputs['Key'] = (training_inputs['Key'] - key_min) / (key_max - key_min)
+    # print(training_inputs)
+    # print(testing_inputs)
 
-    loudness_min = training_inputs['Loudness'].min()
-    loudness_max = training_inputs['Loudness'].max()
-    training_inputs['Loudness'] = (training_inputs['Loudness'] - loudness_min) / (loudness_max - loudness_min)
-
-    speechiness_min = training_inputs['Speechiness'].min()
-    speechiness_max = training_inputs['Speechiness'].max()
-    training_inputs['Speechiness'] = (training_inputs['Speechiness'] - speechiness_min) / (
-            speechiness_max - speechiness_min)
-
-    acousticness_min = training_inputs['Acousticness'].min()
-    acousticness_max = training_inputs['Acousticness'].max()
-    training_inputs['Acousticness'] = (training_inputs['Acousticness'] - acousticness_min) / (
-            acousticness_max - acousticness_min)
-
-    instrumentalness_min = training_inputs['Instrumentalness'].min()
-    instrumentalness_max = training_inputs['Instrumentalness'].max()
-    training_inputs['Instrumentalness'] = (training_inputs['Instrumentalness'] - instrumentalness_min) / (
-            instrumentalness_max - instrumentalness_min)
-
-    liveness_min = training_inputs['Liveness'].min()
-    liveness_max = training_inputs['Liveness'].max()
-    training_inputs['Liveness'] = (training_inputs['Liveness'] - liveness_min) / (liveness_max - liveness_min)
-
-    valence_min = training_inputs['Valence'].min()
-    valence_max = training_inputs['Valence'].max()
-    training_inputs['Valence'] = (training_inputs['Valence'] - valence_min) / (valence_max - valence_min)
-
-    tempo_min = training_inputs['Tempo'].min()
-    tempo_max = training_inputs['Tempo'].max()
-    training_inputs['Tempo'] = (training_inputs['Tempo'] - tempo_min) / (tempo_max - tempo_min)
-
-    duration_min = training_inputs['Duration_ms'].min()
-    duration_max = training_inputs['Duration_ms'].max()
-    training_inputs['Duration_ms'] = (training_inputs['Duration_ms'] - duration_min) / (duration_max - duration_min)
-
-    return training_inputs
+    return training_inputs, testing_inputs
 
 
 def load_data():
     # Read csv file
     data_file = pd.read_csv("Spotify_Youtube.csv")
+
 
     # remove insignificant columns
     processed_data_file = data_file.drop(
@@ -84,12 +47,9 @@ def load_data():
     filtered_data = processed_data_file[(processed_data_file['Stream'] >= stream_cutoff)]
 
     # split data set based on criteria of popular songs
-    loader_training_inputs = filtered_data.drop(columns=['Views', 'Likes', 'Comments', 'Stream'])
+    loader_training_inputs = filtered_data.drop(columns=['Views', 'Likes', 'Comments', 'Stream', 'TrackID', 'Duration_ms'])
     loader_testing_inputs = processed_data_file.drop(loader_training_inputs.index)
-    loader_testing_inputs = loader_testing_inputs.drop(columns=['Views', 'Likes', 'Comments', 'Stream'])
-
-    # normalize using min max
-    loader_training_inputs = process_min_max(loader_training_inputs)
+    loader_testing_inputs = loader_testing_inputs.drop(columns=['Views', 'Likes', 'Comments', 'Stream', 'TrackID', 'Duration_ms'])
 
     # pandas array to numpy
     loader_training_inputs = np.array(loader_training_inputs)
@@ -97,19 +57,25 @@ def load_data():
     loader_training_inputs[np.isnan(loader_training_inputs)] = 0
     loader_testing_inputs[np.isnan(loader_testing_inputs)] = 0
 
+    # normalize using min max
+    loader_training_inputs, loader_testing_inputs = process_min_max(loader_training_inputs, loader_testing_inputs)
+
     # put data into dataloader
     train_data = torch.utils.data.DataLoader(
-        loader_training_inputs, batch_size=128, shuffle=False
+        loader_training_inputs, batch_size=128, shuffle=True
+    )
+    eval_data = torch.utils.data.DataLoader(
+        loader_training_inputs, batch_size=1, shuffle=False
     )
     test_data = torch.utils.data.DataLoader(
-        loader_testing_inputs, batch_size=128, shuffle=False
+        loader_testing_inputs, batch_size=1, shuffle=False
     )
 
-    return train_data, test_data
+    return train_data, test_data, eval_data
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, output_dim=14):
+    def __init__(self, output_dim=12):
         super(AutoEncoder, self).__init__()
         self.enc = nn.Sequential(
             nn.Linear(output_dim, round(output_dim * 0.75)),
@@ -176,45 +142,47 @@ def plot_loss(epoch_loss, epoch, lr):
     plt.savefig('epoch_loss.png')
 
 
-def get_threshold(loss, alpha):
-    mean = np.mean(loss)
-    var = np.var(loss)
-    tr = mean + alpha * var
+def get_threshold(eval_data, device, model, alpha):
+    model.eval()
+    model.to(device)
 
-    print("mean " + str(mean))
-    print("var " + str(var))
-    print("tr " + str(tr))
+    criterion = nn.MSELoss().to(device)
+
+    eval_loss = []
+    for batch_idx, x in enumerate(eval_data):
+        x = x.to(device).float()
+        decode = model(x)
+        e_loss = criterion(decode, x)
+        eval_loss.append(e_loss.item())
+
+    mean = np.mean(eval_loss)
+    var = np.var(eval_loss)
+    tr = mean + alpha * var
 
     return tr
 
 
-def test_model(model, device, test_data, tr, lr, epochs):
+def test_model(model, device, test_data, tr):
+    model.eval()
     model.to(device)
-    model.train()
 
     criterion = nn.MSELoss().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     predictions = []
-    for epoch in range(epochs):
-        for batch_idx, x in enumerate(test_data):
-            x = x.to(device).float()
-            optimizer.zero_grad()
-            decode = model(x)
-            e_loss = criterion(decode, x)
-            e_loss.backward()
-            optimizer.step()
+    for batch_idx, x in enumerate(test_data):
+        x = x.to(device).float()
+        decode = model(x)
+        e_loss = criterion(decode, x)
 
-            if e_loss.item() <= tr:
-                print(x)
-                predictions.append(x)
+        if tr > e_loss.item():
+            predictions.append(batch_idx)
 
     return predictions
 
 
 if __name__ == "__main__":
     # load data
-    training_inputs, testing_inputs = load_data()
+    training_inputs, testing_inputs, eval_data = load_data()
 
     # train data
     autoencoder = AutoEncoder()
@@ -225,8 +193,9 @@ if __name__ == "__main__":
     # plot_loss(loss, epoch, lr)
 
     alpha = 0
-    tr = get_threshold(loss, alpha)
+    tr = get_threshold(eval_data, device="cpu", model=autoencoder, alpha=alpha)
+    print(tr)
+    #
+    predictions = test_model(model=autoencoder, test_data=testing_inputs, device="cpu", tr=tr)
 
-    predictions = test_model(model=autoencoder, test_data=testing_inputs, device="cpu", epochs=epoch, tr=tr, lr=lr)
-
-    print(predictions)
+    print(len(predictions))
